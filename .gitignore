@@ -1,0 +1,9 @@
+# Executable
+yapu
+
+# Object files
+/obj
+*.o
+
+# Ctags
+tags
