@@ -1,49 +1,36 @@
-# Cloudflare Internship Application: Systems
+YAPU - Yet Another Ping Utility
+-------
 
-## What is it?
+This is by no means a complete ping utility, but it can send packets.
 
-Please write a small Ping CLI application for MacOS or Linux.
-The CLI app should accept a hostname or an IP address as its argument, then send ICMP "echo requests" in a loop to the target while receiving "echo reply" messages.
-It should report loss and RTT times for each sent message.
+YAPU is written entirely in C for Linux. It employs the socket and (BSD-style) netinet libraries.
 
-Please choose from among these languages: C/C++/Go/Rust
+This program was developed and tested on a Ubuntu Desktop 18.04.03 LTS.
 
-## Useful Links
+This program uses RAW sockets, which require root permissions.
 
-- [A Tour of Go](https://tour.golang.org/welcome/1)
-- [The Rust Programming Language](https://doc.rust-lang.org/book/index.html)
+* Building
+```
+make
+```
 
-## Requirements
+* Running
+```
+sudo ./yapu ADDRESS
+```
 
-### 1. Use one of the specified languages
+* Issues
+- The ICMP packets being sent and/or received are malformed.
+	- recvfrom(2) will return an icmp packet with an undocumented type (type 69)
+	- recvmsg(2) will return a TTL of 64 and nothing else.
 
-Please choose from among C/C++/Go/Rust. If you aren't familiar with these languages, you're not alone! Many engineers join Cloudflare without
-specific langauge experience. Please consult [A Tour of Go](https://tour.golang.org/welcome/1) or [The Rust Programming Language](https://doc.rust-lang.org/book/index.html).
+* Notes
+- Due to the lack of useful information from the packets, RTT is calculated using gettimeofday(2) and storing the results
+- The received ICMP packets do not contain sequence info that was originally provided, making it impossible to distinguish packets
+	- We assume that any packets received correspond to the least recent packet
+- The biggest difficulties with this project came from a lack of good documentation
+	- Documentation for netinet/ip\_icmp.h consisted mostly of header file sources
+	- Almost no documentation exists for constructing ICMP packets along with the correct fields
+- fping, liboping, etc. sources proved helpful but cumbersome
+- If I had to redo this project, I would just learn Gopher and implement ping with that
 
-### 2. Build a tool with a CLI interface
-
-The tool should accept as a positional terminal argument a hostname or IP address.
-
-### 3. Send ICMP "echo requests" in an infinite loop
-
-As long as the program is running it should continue to emit requests with a periodic delay.
-
-### 4. Report loss and RTT times for each message
-
-Packet loss and latency should be reported as each message received.
-
-## Submitting your project
-
-When submitting your project, you should prepare your code for upload to Greenhouse. The preferred method for doing this is to create a "ZIP archive" of your project folder: for more instructions on how to do this on Windows and Mac, see [this guide](https://www.sweetwater.com/sweetcare/articles/how-to-zip-and-unzip-files/).
-
-Please provide the source code only, a compiled binary is not necessary.
-
-## Using Libraries
-
-You may use libraries (both built-in and installed via package managers) and system calls as necessary. Please don't use the ping built-in application or a full library implementation of ping.
-
-## Extra Credit
-
-1. Add support for both IPv4 and IPv6
-2. Allow to set TTL as an argument and report the corresponding "time exceeded” ICMP messages
-3. Any additional features listed in the ping man page or which you think would be valuable
