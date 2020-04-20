@@ -2,7 +2,7 @@
 #define CBUF_H
 
 struct cbuf {
-	int *buf;
+	void **buf;
 	int len;
 	int size;
 	int start;
@@ -15,8 +15,8 @@ struct cbuf {
 
 int init_cbuf(struct cbuf *buf, int length);
 int delete_cbuf(struct cbuf *buf);
-int cbuf_push(struct cbuf *buf, int item);
-int cbuf_pop(struct cbuf *buf, int *item);
+int cbuf_push(struct cbuf *buf, void *item);
+int cbuf_pop(struct cbuf *buf, void **item);
 int cbuf_empty(struct cbuf *buf);
 
 #endif

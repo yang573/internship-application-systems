@@ -1,8 +1,26 @@
 YAPU - Yet Another Ping Utility
+-------
 
-raw sockets require root permissions
+This is by no means a complete ping utility, but it is what I could come up with over the weekend.
 
-Dev Notes
------
-* If I had to redo this project, I would just learn Gopher and implement ping with that.
+YAPU is written entirely in C for Linux. It was developed and tested on a Ubuntu Desktop 18.04.03 LTS.
+
+This program uses RAW sockets, which require root permissions
+
+* Building
+```
+make
+```
+
+* Running
+```
+sudo ./yapu ADDRESS
+```
+
+* Dev Notes
+- The biggest difficulties with this project came from a lack of good documentation
+	- Documentation for netinet/ip_icmp.h consisted mostly of header file sources
+	- Almost no documentation exists for constructing ICMP packets along with the correct fields
+- fping, liboping, etc. sources proved helpful but cumbersome
+- If I had to redo this project, I would just learn Gopher and implement ping with that
 

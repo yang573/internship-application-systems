@@ -6,7 +6,7 @@
 
 int init_cbuf(struct cbuf *buf, int length)
 {
-	buf = malloc(length);
+	buf->buf = malloc(sizeof(void*) * length);
 	if (buf == NULL)
 		return BUF_FATAL;
 	buf->len = length;
@@ -32,7 +32,7 @@ int delete_cbuf(struct cbuf *buf)
 	return 0;
 }
 
-int cbuf_push(struct cbuf *buf, int item)
+int cbuf_push(struct cbuf *buf, void *item)
 {
 	if (buf == NULL)
 		return BUF_FATAL;
@@ -51,7 +51,7 @@ int cbuf_push(struct cbuf *buf, int item)
 	return 0;
 }
 
-int cbuf_pop(struct cbuf *buf, int *item)
+int cbuf_pop(struct cbuf *buf, void **item)
 {
 	if (buf == NULL)
 		return BUF_FATAL;
