@@ -38,6 +38,6 @@ int init_ping(const char *node, int ttl);
 int cleanup_ping(int socket_fd);
 void* ping_routine(void* arg);
 void* recv_routine(void* arg);
-int ping_results(void);
+void ping_results(void);
 
 #endif

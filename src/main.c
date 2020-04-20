@@ -10,6 +10,8 @@
 
 void sigint_handler(int signum);
 
+/* Prints out usage info
+ */
 static void print_help(void)
 {
 	fprintf(stdout, "Usage: yapu ADDRESS\n");
@@ -24,7 +26,7 @@ int main(int argc, char *argv[])
 	int ret;
 
 	// 1. Parse args
-	if (argc < 2)
+	if (argc != 2)
 	{
 		print_help();
 		return 1;
@@ -32,11 +34,20 @@ int main(int argc, char *argv[])
 
 	address = argv[1];
 
+	// 2. Setup SIGINT handler
 	struct sigaction action, old_action;
 	action.sa_handler = sigint_handler;
-	sigemptyset(&action.sa_mask);
+	ret = sigemptyset(&action.sa_mask);
+	if (ret != 0)
+	{
+		perror("Error setting up signal handler");
+	}
 	action.sa_flags = SA_RESTART;
-	sigaction(SIGINT, &action, &old_action);
+	ret = sigaction(SIGINT, &action, &old_action);
+	if (ret != 0)
+	{
+		perror("Error setting up signal handler");
+	}
 
 	// 2. Get socket fd
 	socket_fd = init_ping(address, DEFAULT_TTL);
@@ -69,13 +80,15 @@ int main(int argc, char *argv[])
 	// 6. Print out results
 	ping_results();
 
+	// 7. Clean up
 	cleanup_ping(socket_fd);
 
 	return 0;
 }
 
-// SIGINT handler
-// Stops pinging
+/* SIGINT handler
+ * Stops the ping loop
+ */
 void sigint_handler(int signum)
 {
 	fprintf(stderr, "Sigint\n");

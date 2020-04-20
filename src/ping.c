@@ -26,12 +26,16 @@ static pthread_cond_t pkt_buf_cond = PTHREAD_COND_INITIALIZER;
 static unsigned int n_pings_sent = 0;
 static unsigned int n_pings_recv = 0;
 
+/* struct for the circular buffer
+ * Includes the packet sequence number and send time
+ */
 struct pkt_seq {
 	int seq;
 	struct timeval time;
 };
 
 /* Derived from RFC 1071 memo
+ * Compute the internet checksum for the packets
  */
 static uint16_t icmp_checksum(void *addr, int length)
 {
@@ -52,46 +56,11 @@ static uint16_t icmp_checksum(void *addr, int length)
 	return (uint16_t)(~sum);
 }
 
-/*
-static int cbuf_index(struct cbuf *buf, int seq)
-{
-	if (buf == NULL)
-		return BUF_FATAL;
-	if (buf->size == 0)
-		return BUF_EMPTY;
-
-	for (int i = buf->start; i < buf->end; ++i)
-	{
-		if ( ((struct pkt*)buf[i])->seq == seq)
-			return i;
-	}
-
-	return -1;
-}
-
-static int cbuf_remove(struct cbuf *buf, int seq, struct pkt_seq **time_seq)
-{
-	if (buf == NULL)
-		return BUF_FATAL;
-	if (buf->size == 0)
-		return BUF_EMPTY;
-
-	int index = cbuf_index(buf, seq);
-	if (index == -1)
-		return -1;
-
-	*time_seq = buf->buf[index];
-
-	buf->start++;
-	buf->size--;
-
-	if (buf->start == buf->len)
-		buf->start = 0;
-
-	return 0;
-}
-*/
-
+/* Open a socket and initalize a circular buffer for pings
+ * node: The address to ping
+ * ttl: The target time to live (ie. hop limit)
+ * Returns: The socket file descriptor, or negative number on error
+ */
 int init_ping(const char *node, int ttl)
 {
 	struct addrinfo hints, *list, *addr;
@@ -105,22 +74,23 @@ int init_ping(const char *node, int ttl)
 		return ERR_USAGE;
 	}
 
-	/* Get address info for socket */
+	// Set address info hints for socket
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_RAW;
-	hints.ai_protocol = IPPROTO_ICMP;
+	hints.ai_family = AF_INET;			// IPv4
+	hints.ai_socktype = SOCK_RAW;		// raw socket
+	hints.ai_protocol = IPPROTO_ICMP;	// ICMP
 	hints.ai_flags = 0;
 
+	// Find address
 	ret = getaddrinfo(node, NULL, &hints, &list);
 	if (ret != 0)
 	{
 		const char *error_msg = gai_strerror(ret);
 		fprintf(stderr, "Error on %s: %s\n", node, error_msg);
-		return ERR_FATAL;
+		return ERR_USAGE;
 	}
 
-	/* Connect to socket */
+	// Connect to first available socket
 	for (addr = list; addr != NULL; addr = addr->ai_next)
 	{
 		socket_fd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
@@ -140,7 +110,7 @@ int init_ping(const char *node, int ttl)
 	if (socket_fd == -1)
 		return ERR_FATAL;
 
-	/* Setup socket */
+	// Setup socket
 	// Set the default TTL field for all packets
 	ret = setsockopt(socket_fd, IPPROTO_IP, IP_TTL, &((int){DEFAULT_TTL}), sizeof(int));
 	if (ret == -1)
@@ -157,40 +127,53 @@ int init_ping(const char *node, int ttl)
 		return ERR_FATAL;
 	}
 
+	// Initialize circular buffer
+	// Add some extra length beyond what should required
 	pkg_buf_len = ttl / PING_DELAY;
 	pkg_buf_len += pkg_buf_len / 10;
 
 	init_cbuf(&pkt_buf, pkg_buf_len);
 
+	// Return
 	return socket_fd;
 }
 
+/* Close the socket file descriptor and clean up the circular buffer
+ * socket_fd: The socket file descriptor to close
+ * Returns: 0 on success, non-zero on error
+ */
 int cleanup_ping(int socket_fd)
 {
 	int i;
 	int error = 0;
 	int ret;
 
+	// Free the contents of the circular buffer
 	for (i = pkt_buf.start; i < pkt_buf.end; ++i)
 		free(pkt_buf.buf[i]);
 
+	// Clean up the cbuf struct
 	ret = delete_cbuf(&pkt_buf);
 	if (ret != 0)
 	{
 		fprintf(stderr, "Error cleaning up buffers\n");
-		error = 1;
+		error = ERR_FATAL;
 	}
 
 	close(socket_fd);
 	if (ret != 0)
 	{
 		perror("Error closing socket");
-		error = 1;
+		error = ERR_FATAL;
 	}
 
 	return error;
 }
 
+/* Thread routine for continuous pinging
+ * arg: The socket file descriptor
+ * Returns: 0 on success, non_zero on error
+ */
 void* ping_routine(void* arg)
 {
 	int socket_fd = (int)(intptr_t)arg;
@@ -205,6 +188,7 @@ void* ping_routine(void* arg)
 	dst_addr.sin_family = AF_INET;
 	dst_addr.sin_port = IPPROTO_ICMP;
 
+	// Set up ICMP packet
 	memset(&icmp_pkt, 0, sizeof(icmp_pkt));
 	icmp_pkt.icmp_type = ICMP_ECHO;
 	icmp_pkt.icmp_code = 0;
@@ -213,10 +197,12 @@ void* ping_routine(void* arg)
 
 	while (ping_loop)
 	{
+		// Set ICMP packet sequence number and checksum
 		icmp_pkt.icmp_seq = seq;
 		seq++;
 		icmp_pkt.icmp_cksum = icmp_checksum(&icmp_pkt, sizeof(icmp_pkt));
 
+		// Get current time
 		pthread_mutex_lock(&pkt_buf_lock);
 		ret = gettimeofday(&time, NULL);
 		if (ret == -1)
@@ -225,6 +211,8 @@ void* ping_routine(void* arg)
 			goto ping_routine_error;
 		}
 
+		// Send packet
+		// and increment counter
 		ret = sendto(socket_fd, &icmp_pkt, sizeof(icmp_pkt), 0,
 				(struct sockaddr*)&dst_addr, sizeof(dst_addr));
 		if (ret == -1)
@@ -234,6 +222,7 @@ void* ping_routine(void* arg)
 		}
 		n_pings_sent++;
 
+		// Add time and packet sequence number to the circular buffer
 		time_seq = malloc(sizeof(struct pkt_seq));
 		if (time_seq == NULL)
 		{
@@ -255,12 +244,14 @@ void* ping_routine(void* arg)
 			goto ping_routine_error;
 		}
 
+		// Signal that a packet is ready, in case recv_routine is waiting
 		pthread_cond_signal(&pkt_buf_cond);
 		pthread_mutex_unlock(&pkt_buf_lock);
 
 		sleep(1);
 	}
 
+	// Wake up recv_routine before exiting
 	pthread_mutex_lock(&pkt_buf_lock);
 	pthread_cond_signal(&pkt_buf_cond);
 	pthread_mutex_unlock(&pkt_buf_lock);
@@ -268,8 +259,7 @@ void* ping_routine(void* arg)
 	return 0;
 
 ping_routine_error:
-	pthread_mutex_unlock(&ping_loop_lock);
-
+	// Wake up recv_routine and main before exiting
 	pthread_mutex_lock(&ping_loop_lock);
 	ping_loop = 0;
 	pthread_cond_signal(&ping_loop_cond);
@@ -278,6 +268,10 @@ ping_routine_error:
 	return (void*)(intptr_t)ERR_FATAL;
 }
 
+/* Thread routine for receiving echo responses
+ * arg: The socket file descriptor
+ * Returns: 0 on success, non_zero on error
+ */
 void* recv_routine(void* arg)
 {
 	int socket_fd = (int)(intptr_t)arg;
@@ -294,6 +288,7 @@ void* recv_routine(void* arg)
 	//int seq;
 	int ret;
 
+	// Setup the message header for recvmsg(2)
 	msg_iov.iov_base = iov_buf;
 	msg_iov.iov_len = sizeof(iov_buf);
 
@@ -307,14 +302,18 @@ void* recv_routine(void* arg)
 
 	while (ping_loop)
 	{
+		// Wait for circular buffer to have contents
 		pthread_mutex_lock(&pkt_buf_lock);
 		if (cbuf_empty(&pkt_buf))
 			pthread_cond_wait(&pkt_buf_cond, &pkt_buf_lock);
 		pthread_mutex_unlock(&pkt_buf_lock);
 
+		// Check that loop is not broken when waking up
 		if (!ping_loop)
 			break;
 
+		// Receive the echo response packet
+		// and increment counter
 		pkt_bytes = recvmsg(socket_fd, &msg, 0);
 		if (pkt_bytes == -1)
 		{
@@ -323,6 +322,9 @@ void* recv_routine(void* arg)
 		}
 		n_pings_recv++;
 
+		// Get time that packet was recieved
+		// NOTE: The ICMP packet usually should contain time information
+		// This is block is needed due to malformed ICMP packets
 		ret = gettimeofday(&time, NULL);
 		if (ret == -1)
 		{
@@ -332,12 +334,16 @@ void* recv_routine(void* arg)
 
 		fprintf(stdout, "%d bytes ", pkt_bytes);
 
+		// Remove the approriate packet sequence from the circular buffer
+		// NOTE: The ICMP packet usually contain the sequence information
+		// that was originally supplied by the sender. The ICMP packets
+		// are malformed, therefore we just pop a packet from the circular
+		// buffer and call it a day.
 		pthread_mutex_lock(&pkt_buf_lock);
-		//ret = cbuf_remove(&pkt_buf, seq, &time_seq)
-		//if (ret == -1)
 		ret = cbuf_pop(&pkt_buf, (void**)&time_seq);
 		pthread_mutex_unlock(&pkt_buf_lock);
 
+		// Calculate the RTT
 		time_dif = time.tv_sec - time_seq->time.tv_sec;
 		fprintf(stdout, "%ld s ", time_dif);
 
@@ -372,6 +378,7 @@ void* recv_routine(void* arg)
 	return 0;
 
 recv_routine_error:
+	// Wake up main before exiting
 	pthread_mutex_lock(&ping_loop_lock);
 	ping_loop = 0;
 	pthread_cond_signal(&ping_loop_cond);
@@ -380,10 +387,10 @@ recv_routine_error:
 	return (void*)(intptr_t)ERR_FATAL;
 }
 
-int ping_results(void)
+/* Print out the number of pings sent and received
+ */
+void ping_results(void)
 {
 	fprintf(stdout, "%d packets sents, %d packets received\n", n_pings_sent, n_pings_recv);
-
-	return 0;
 }
 
