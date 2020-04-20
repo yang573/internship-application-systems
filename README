@@ -1,1 +1,3 @@
 YAPU - Yet Another Ping Utility
+
+raw sockets require root permissions

@@ -3,7 +3,7 @@ TARGETS=yapu
 ifdef D
 	CPERF=-g
 else
-	CPERF=-O2
+	CPERF=-O3
 endif
 
 CC=gcc
@@ -19,10 +19,11 @@ CFLAGS=-Wall -Werror $(CPERF) -I $(INCLUDES)
 
 all: $(TARGETS)
 
-yapu: $(OBJDIR)/main.o
+yapu: $(OBJDIR)/main.o $(OBJDIR)/ping.o
 
-$(OBJDIR)/main.o: $(INCLUDES)/defs.h
+$(OBJDIR)/main.o: $(INCLUDES)/ping.h
 
+$(OBJDIR)/ping.o: $(INCLUDES)/defs.h $(INCLUDES)/ping.h
 
 ## Compilation
 

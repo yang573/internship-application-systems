@@ -1,1 +1,6 @@
-#define	DEFAULT_TTL	10
+#ifndef DEFS_H
+#define DEF_H
+
+#define	DEFAULT_TTL	255
+
+#endif
