@@ -30,6 +30,14 @@ typedef struct icmp_header_t {
 } icmp_hdr;
 */
 
-int send_ping(const char *node);
+extern int ping_loop;
+extern pthread_mutex_t ping_loop_lock;
+extern pthread_cond_t ping_loop_cond;
+
+int init_ping(const char *node, int ttl);
+int cleanup_ping(int socket_fd);
+void* ping_routine(void* arg);
+void* recv_routine(void* arg);
+int ping_results(void);
 
 #endif

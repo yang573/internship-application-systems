@@ -13,22 +13,25 @@ INCLUDES=include
 OBJDIR=obj
 
 CFLAGS=-Wall -Werror $(CPERF) -I $(INCLUDES)
+LDFLAGS=-lpthread
 
 
 ## Dependencies
 
 all: $(TARGETS)
 
-yapu: $(OBJDIR)/main.o $(OBJDIR)/ping.o
+yapu: $(OBJDIR)/main.o $(OBJDIR)/ping.o $(OBJDIR)/cbuf.o
 
-$(OBJDIR)/main.o: $(INCLUDES)/ping.h
+$(OBJDIR)/main.o: $(INCLUDES)/defs.h $(INCLUDES)/ping.h
 
-$(OBJDIR)/ping.o: $(INCLUDES)/defs.h $(INCLUDES)/ping.h
+$(OBJDIR)/ping.o: $(INCLUDES)/defs.h $(INCLUDES)/cbuf.h $(INCLUDES)/ping.h
+
+$(OBJDIR)/cbuf.o: $(INCLUDES)/cbuf.h
 
 ## Compilation
 
 $(TARGETS):
-	$(CC) $^ -o $@
+	$(CC) $^ $(LDFLAGS) -o $@
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<

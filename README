@@ -1,3 +1,8 @@
 YAPU - Yet Another Ping Utility
 
 raw sockets require root permissions
+
+Dev Notes
+-----
+* If I had to redo this project, I would just learn Gopher and implement ping with that.
+
