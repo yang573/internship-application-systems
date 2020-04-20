@@ -312,6 +312,9 @@ void* recv_routine(void* arg)
 			pthread_cond_wait(&pkt_buf_cond, &pkt_buf_lock);
 		pthread_mutex_unlock(&pkt_buf_lock);
 
+		if (!ping_loop)
+			break;
+
 		pkt_bytes = recvmsg(socket_fd, &msg, 0);
 		if (pkt_bytes == -1)
 		{
