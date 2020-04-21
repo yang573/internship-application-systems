@@ -51,6 +51,8 @@ int main(int argc, char *argv[])
 
 	// 2. Get socket fd
 	socket_fd = init_ping(address, DEFAULT_TTL);
+	if (socket_fd < 0)
+		return socket_fd;
 
 	// 3. Create threads for sending/receiving packets
 	ret = pthread_create(&ping_thread, NULL, ping_routine, (void*)(intptr_t)socket_fd);
